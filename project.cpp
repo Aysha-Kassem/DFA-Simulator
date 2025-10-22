@@ -3,23 +3,37 @@
 #include <map>
 #include <set>
 #include <string>
-#include <limits> // Required for numeric_limits
+#include <limits> 
+#include <sstream> // Included for robust input validation
 
 using namespace std;
 
-// Helper function to read a valid number of a specific type
+// Helper function to read and validate a single number of a specific type (T)
 template <typename T>
 bool read_valid_number(T& value, const string& prompt, const string& error_message) {
     while (true) {
         cout << prompt;
-        if (cin >> value) {
-            return true; // Input successful
+        
+        // Read the whole line as a string first
+        string line;
+        if (!getline(cin, line)) {
+            return false; 
+        }
+        stringstream ss(line);
+        // Try to extract the value from the string stream
+        if (ss >> value) {
+            char remaining;
+            // Check if there is anything left in the line after reading the number.
+            if (ss >> remaining) {
+                // Failure: Extra input found (e.g., decimal part, extra characters)
+                cout << "Error: Only a single, whole number is allowed. Please try again.\n";
+            } else {
+                // Success: Only one value of type T was read
+                return true; 
+            }
         } else {
-            // Input failed (e.g., character instead of number)
+            // Read failure (e.g., entered characters instead of a number)
             cout << error_message << " Please try again.\n";
-            cin.clear(); // Clear the error flags
-            // Ignore the rest of the line to prevent infinite loop
-            cin.ignore(numeric_limits<streamsize>::max(), '\n'); 
         }
     }
 }
@@ -28,8 +42,7 @@ bool read_valid_number(T& value, const string& prompt, const string& error_messa
 
 int main() {
     // I. Reading DFA Definition
-    size_t numStates; 
-    size_t numSymbols;
+    size_t numStates, numSymbols;
 
     // 1. Validate number of states (must be > 0)
     do {
@@ -46,10 +59,16 @@ int main() {
     } while (true);
 
     vector<char> symbols(numSymbols); 
-    cout << "Enter symbols (e.g. a b): ";
-    // This loop relies on spaces between symbols
-    for (size_t i = 0; i < numSymbols; i++)
+    
+    // Note: This loop still reads one character at a time, relying on the user providing
+    // characters separated by spaces or newlines.
+    cout << "Enter the symbols in the alphabet (e.g., a b): ";
+    for (size_t i = 0; i < numSymbols; i++){
         cin >> symbols[i];
+    }
+    // Clear any remaining input after reading the characters, especially important before getline is used later.
+    cin.ignore(numeric_limits<streamsize>::max(), '\n');
+
 
     // Transition table: Next State is stored as size_t
     vector<map<char, size_t>> transitions(numStates);
@@ -61,7 +80,7 @@ int main() {
             size_t next;
             // 3. Validate Next State (must be < numStates)
             do {
-                if (!read_valid_number(next, "  On '" + string(1, sym) + "' go to: ", "Invalid input type.")) return 1;
+                if (!read_valid_number(next, "  On '" + string(1, sym) + "' go to state: ", "Invalid input type.")) return 1;
                 if (next < numStates) break;
                 cout << "Error: Next state " << next << " is out of range [0, " << numStates - 1 << "]. Please re-enter.\n";
             } while (true);
@@ -83,7 +102,7 @@ int main() {
 
     // Final states
     set<size_t> finalStates;
-    cout << "Enter final states: ";
+    cout << "Entering final states...\n";
     for (size_t i = 0; i < (size_t)numFinal_int; i++) { 
         size_t f;
         // 5. Validate Final States (must be < numStates)
@@ -100,10 +119,18 @@ int main() {
     while (true) {
         string input;
         cout << "\nEnter input string (or type 'exit' to quit): ";
-        cin >> input;
+        // Using cin >> input here works because input strings don't contain spaces.
+        if (!(cin >> input)) { 
+            // Handle EOF or other stream errors
+            break;
+        }
 
         if (input == "exit")
             break;
+        
+        // Ensure cin stream is clear before potential next read_valid_number call
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+
 
         size_t currentState = startState;
         bool invalid = false;
@@ -113,7 +140,7 @@ int main() {
         for (char ch : input) {
             // Check for undefined transition (invalid symbol or incomplete DFA definition)
             if (transitions[currentState].find(ch) == transitions[currentState].end()) {
-                cout << "\nError: Invalid symbol '" << ch << "' encountered or undefined transition.\n";
+                cout << "\nError: Invalid symbol '" << ch << "' encountered or undefined transition. Stopping.\n";
                 invalid = true;
                 break;
             }
